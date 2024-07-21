@@ -19,7 +19,7 @@ namespace LanguageBot
 			}
 
 			TelegramBotClient bot = new(botToken);
-			
+
 			bot.StartReceiving(Update, Error);
 			Console.ReadKey();
 		}
@@ -33,9 +33,9 @@ namespace LanguageBot
 		{
 			if (update.Type == UpdateType.Message && update.Message.Text == "/start")
 			{
-				await bot.SendTextMessageAsync(update.Message.Chat.Id, "hi dude");
+				await bot.SendTextMessageAsync(update.Message.Chat.Id, "cheeseburger");
 			}
-			
+
 			return;
 		}
 	}
