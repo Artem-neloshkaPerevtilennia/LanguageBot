@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LanguageBot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+db96df170e603bac6a141a83174bc5b491b8ff83")]
 [assembly: System.Reflection.AssemblyProductAttribute("LanguageBot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LanguageBot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
