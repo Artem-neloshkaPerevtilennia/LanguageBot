@@ -5,7 +5,7 @@ namespace LanguageBot
 {
     static class WordsOperations
     {
-        public static async Task AddWord(string command, ITelegramBotClient bot, long chatId)
+        public static async Task AddWord(string command, ITelegramBotClient bot, long chatId, string username)
         {
             string database = "DB-FILE";
             string? fileName = Program.IsEnvironmentalVariableExists(database);
@@ -13,7 +13,7 @@ namespace LanguageBot
 
             string wordToAdd = command.Replace("/add", "").Trim();
 
-            string fullPath = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+            string fullPath = Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
             using (StreamWriter sw = new(fullPath, true))
             {
                 sw.WriteLine(wordToAdd);
@@ -22,7 +22,7 @@ namespace LanguageBot
             Console.WriteLine($"word {wordToAdd} added");
         }
 
-        public static async Task RemoweWord(string command, ITelegramBotClient bot, long chatId)
+        public static async Task RemoweWord(string command, ITelegramBotClient bot, long chatId, string username)
         {
             string database = "DB-FILE";
             string? fileName = Program.IsEnvironmentalVariableExists(database);
@@ -30,8 +30,15 @@ namespace LanguageBot
 
             string wordToDelete = command.Replace("/delete", "").Trim();
 
-            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
             List<string> wordsInDB = new(File.ReadAllLines(fullPathDelete));
+
+            if (wordsInDB.Count == 0)
+            {
+                await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                return;
+            }
+
             string? wordAndTranslateToDelete = wordsInDB.Find(x => x.Contains(wordToDelete, StringComparison.CurrentCultureIgnoreCase));
 
             if (wordAndTranslateToDelete == null)
@@ -51,7 +58,7 @@ namespace LanguageBot
             }
         }
 
-        public static async Task ThrowRandomWord(ITelegramBotClient bot, long chatId)
+        public static async Task ThrowRandomWord(ITelegramBotClient bot, long chatId, string username)
         {
             Random random = new();
 
@@ -59,8 +66,15 @@ namespace LanguageBot
             string? fileName = Program.IsEnvironmentalVariableExists(database);
             if (fileName == null) return;
 
-            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
             List<string> wordsInDB = new(File.ReadAllLines(fullPathDelete));
+
+            if (wordsInDB.Count == 0)
+            {
+                await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                return;
+            }
+
             int indexOfWord = random.Next(0, wordsInDB.Count);
 
             string randomWord = wordsInDB[indexOfWord].Split(' ')[0];
@@ -68,14 +82,20 @@ namespace LanguageBot
             Console.WriteLine("random word sent");
         }
 
-        public static async Task ShowAllWords(ITelegramBotClient bot, long chatId)
+        public static async Task ShowAllWords(ITelegramBotClient bot, long chatId, string username)
         {
             string database = "DB-FILE";
             string? fileName = Program.IsEnvironmentalVariableExists(database);
             if (fileName == null) return;
 
-            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName);
+            string fullPathDelete = Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
             List<string> wordsInDB = new(File.ReadAllLines(fullPathDelete));
+
+            if (wordsInDB.Count == 0)
+            {
+                await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                return;
+            }
 
             StringBuilder allWords = new();
 
