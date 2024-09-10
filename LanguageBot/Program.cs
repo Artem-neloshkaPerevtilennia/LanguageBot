@@ -36,19 +36,7 @@ namespace LanguageBot
 			long chatId = message.Chat.Id;
 			var username = message.From?.Username;
 
-			if (username == null)
-			{
-				Console.WriteLine("username doesn't exist");
-				return;
-			}
-			else
-			{
-				if (!System.IO.File.Exists($"Users/{username}.txt"))
-				{
-					System.IO.File.Create($"Users/{username}.txt");
-					Console.WriteLine("File created");
-				}
-			}
+			CreateDictionary(username);
 
 			switch (message.Text.ToLower())
 			{
@@ -61,22 +49,22 @@ namespace LanguageBot
 					if (!IsAddCommandValid(s))
 						await bot.SendTextMessageAsync(chatId, "Hmm... it doesn't seem like /add {word} {translate}. Maybe, you missed something");
 					else
-						await WordsOperations.AddWord(s, bot, chatId, username + ".txt");
+						await WordsOperations.AddWord(s, bot, chatId, $"{username}.txt");
 					return;
 
 				case string s when s.Contains("/delete"):
 					if (!IsDeleteCommandValid(s))
 						await bot.SendTextMessageAsync(chatId, "What do you want to delete? I need only /delete {word}, not only /delete and not a whole roman");
 					else
-						await WordsOperations.RemoweWord(s, bot, chatId, username + ".txt");
+						await WordsOperations.RemoveWord(s, bot, chatId, $"{username}.txt");
 					return;
 
 				case "/rand":
-					await WordsOperations.ThrowRandomWord(bot, chatId, username + ".txt");
+					await WordsOperations.ThrowRandomWord(bot, chatId, $"{username}.txt");
 					return;
 
 				case "/list":
-					await WordsOperations.ShowAllWords(bot, chatId, username + ".txt");
+					await WordsOperations.ShowAllWords(bot, chatId, $"{username}.txt");
 					return;
 
 				case "/help":
@@ -92,20 +80,40 @@ namespace LanguageBot
 					Console.WriteLine("не те");
 					return;
 			}
-
-			return;
 		}
 
-		public static string? IsEnvironmentalVariableExists(string varName)
+		public static string? GetEnvironmentVariable(string varName)
 		{
-			string? variableName = Environment.GetEnvironmentVariable(varName);
-			if (variableName == null)
-				Console.WriteLine($"environmental variable {variableName} doesn't exist");
+			string? variableValue = Environment.GetEnvironmentVariable(varName);
+			if (variableValue == null)
+				Console.WriteLine($"environmental variable {variableValue} doesn't exist");
 
-			return variableName;
+			return variableValue;
 		}
 
 		private static bool IsAddCommandValid(string command) => command.Split(' ').Length >= 3;
 		private static bool IsDeleteCommandValid(string command) => command.Split(' ').Length == 2;
+
+		private static void CreateDictionary(string? username)
+		{
+			if (username == null)
+			{
+				Console.WriteLine("username doesn't exist");
+				return;
+			}
+
+			string directory = "Users";
+			if (!Directory.Exists(directory))
+			{
+				Directory.CreateDirectory(directory);
+			}
+
+			string filePath = Path.Combine(directory, $"{username}.txt");
+			if (!System.IO.File.Exists(filePath))
+			{
+				using (FileStream fs = System.IO.File.Create(filePath)) { }
+				Console.WriteLine($"File for user {username} created");
+			}
+		}
 	}
 }
