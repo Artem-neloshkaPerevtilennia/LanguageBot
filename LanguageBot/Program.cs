@@ -1,4 +1,5 @@
-﻿using DotNetEnv;
+﻿using System.Text.RegularExpressions;
+using DotNetEnv;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -11,12 +12,8 @@ namespace LanguageBot
 		{
 			Env.Load();
 
-			string? botToken = Environment.GetEnvironmentVariable("BOT-TOKEN");
-			if (botToken == null)
-			{
-				Console.WriteLine("bot token doesn't exist");
-				return;
-			}
+			string? botToken = GetEnvironmentVariable("BOT-TOKEN");
+			if (botToken == null) return;
 
 			TelegramBotClient bot = new(botToken);
 
@@ -35,6 +32,11 @@ namespace LanguageBot
 			Message message = update.Message;
 			long chatId = message.Chat.Id;
 			var username = message.From?.Username;
+			if (username == null)
+			{
+				Console.WriteLine("username doesn't exist");
+				return;
+			}
 
 			CreateDictionary(username);
 
@@ -69,7 +71,7 @@ namespace LanguageBot
 
 				case "/help":
 					await bot.SendTextMessageAsync(chatId, @"Here are some commands to operate with dictionary:
-						/add {word} {translate} - write new word in dictionary
+						/add {word} - {translate} - write new word in dictionary
 						/delete {word} - delete word from dictionary
 						/rand - throw a random word from dictionary (without a translation)
 						/list - show all words in dictionary with translation
@@ -91,17 +93,22 @@ namespace LanguageBot
 			return variableValue;
 		}
 
-		private static bool IsAddCommandValid(string command) => command.Split(' ').Length >= 3;
-		private static bool IsDeleteCommandValid(string command) => command.Split(' ').Length == 2;
+		private static bool IsAddCommandValid(string command)
+		{
+			Regex fullCommand = new(@"^/add\s+[a-zA-Z\s]+\s+-+\s[\p{IsCyrillic}a-zA-Z\s,'-]+$");
+
+			return fullCommand.IsMatch(command);
+		}
+
+		private static bool IsDeleteCommandValid(string command)
+		{
+			Regex validCommand = new(@"^/delete\s+[a-zA-Z\s]+$");
+
+			return validCommand.IsMatch(command);
+		}
 
 		private static void CreateDictionary(string? username)
 		{
-			if (username == null)
-			{
-				Console.WriteLine("username doesn't exist");
-				return;
-			}
-
 			string directory = "Users";
 			if (!Directory.Exists(directory))
 			{

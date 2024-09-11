@@ -18,13 +18,29 @@ namespace LanguageBot
                 }
 
                 string wordToAdd = command.Replace("/add ", "").Trim();
+                string wordToAddWithoutExtraSpaces = string.Join(" ", wordToAdd.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+                bool? isWordInDB = IsWordInDB(wordToAddWithoutExtraSpaces, fullPath);
+                if (isWordInDB == null)
+                {
+                    await bot.SendTextMessageAsync(chatId, "Woooops... seems like you database wasn't created.");
+                    Console.WriteLine($"database {username} doesn't exist");
+                    return;
+                }
+
+                if (isWordInDB == true)
+                {
+                    await bot.SendTextMessageAsync(chatId, "Heeeey... you've added this word already!");
+                    Console.WriteLine("this dumb bitch forgot what he added");
+                    return;
+                }
 
                 using (StreamWriter sw = new(fullPath, true))
                 {
-                    sw.WriteLine(wordToAdd);
+                    sw.WriteLine(wordToAddWithoutExtraSpaces);
                 }
-                await bot.SendTextMessageAsync(chatId, $"word {wordToAdd} added");
-                Console.WriteLine($"word {wordToAdd} added");
+                await bot.SendTextMessageAsync(chatId, $"word {wordToAddWithoutExtraSpaces} added");
+                Console.WriteLine($"word {wordToAddWithoutExtraSpaces} added");
             }
             catch (Exception exception)
             {
@@ -37,15 +53,21 @@ namespace LanguageBot
             try
             {
                 string? fullPath = GetPathToDB(username);
-                List<string>? wordsInDB = await GetAllWords(fullPath, bot, chatId);
+                List<string>? wordsInDB = GetAllWords(fullPath);
                 if (wordsInDB == null) return;
+                if (wordsInDB.Count == 0)
+                {
+                    await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                    return;
+                }
 
                 string wordToDelete = command.Replace("/delete ", "").Trim();
-                string? wordAndTranslateToDelete = wordsInDB.Find(x => x.Contains(wordToDelete, StringComparison.CurrentCultureIgnoreCase));
+                string wordToDeleteWithoutExtraSpaces = string.Join(" ", wordToDelete.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                string? wordAndTranslateToDelete = wordsInDB.Find(x => x.Contains(wordToDeleteWithoutExtraSpaces, StringComparison.CurrentCultureIgnoreCase));
 
                 if (wordAndTranslateToDelete == null)
                 {
-                    await bot.SendTextMessageAsync(chatId, $"Wooops... word {wordToDelete} doesn't exist in dictionary. Maybe, you meant something else");
+                    await bot.SendTextMessageAsync(chatId, $"Wooops... word {wordToDeleteWithoutExtraSpaces} doesn't exist in dictionary. Maybe, you meant something else");
                     Console.WriteLine("word doesn't exist");
                 }
                 else
@@ -55,7 +77,7 @@ namespace LanguageBot
                     {
                         File.WriteAllLines(fullPath, wordsInDB);
                         Console.WriteLine("word deleted");
-                        await bot.SendTextMessageAsync(chatId, $"Word {wordToDelete} deleted succesfully");
+                        await bot.SendTextMessageAsync(chatId, $"Word {wordToDeleteWithoutExtraSpaces} deleted succesfully");
                     }
                 }
             }
@@ -70,13 +92,18 @@ namespace LanguageBot
             try
             {
                 string? fullPath = GetPathToDB(username);
-                List<string>? wordsInDB = await GetAllWords(fullPath, bot, chatId);
+                List<string>? wordsInDB = GetAllWords(fullPath);
                 if (wordsInDB == null) return;
+                if (wordsInDB.Count == 0)
+                {
+                    await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                    return;
+                }
 
                 Random random = new();
                 int indexOfWord = random.Next(0, wordsInDB.Count);
 
-                string randomWord = wordsInDB[indexOfWord].Split(' ')[0];
+                string randomWord = wordsInDB[indexOfWord].Split(" -")[0];
                 await bot.SendTextMessageAsync(chatId, $"Random word: {randomWord}");
                 Console.WriteLine("random word sent");
             }
@@ -91,8 +118,13 @@ namespace LanguageBot
             try
             {
                 string? fullPath = GetPathToDB(username);
-                List<string>? wordsInDB = await GetAllWords(fullPath, bot, chatId);
+                List<string>? wordsInDB = GetAllWords(fullPath);
                 if (wordsInDB == null) return;
+                if (wordsInDB.Count == 0)
+                {
+                    await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+                    return;
+                }
 
                 StringBuilder allWords = new();
                 foreach (var word in wordsInDB)
@@ -108,6 +140,15 @@ namespace LanguageBot
             }
         }
 
+        private static bool? IsWordInDB(string newWord, string pathToDB)
+        {
+            List<string>? wordsInDB = GetAllWords(pathToDB);
+
+            if (wordsInDB == null) return null;
+
+            return wordsInDB.Count > 0 && wordsInDB.Contains(newWord);
+        }
+
         private static string? GetPathToDB(string username)
         {
             string database = "DB-FILE";
@@ -117,21 +158,15 @@ namespace LanguageBot
             : Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
         }
 
-        private static async Task<List<string>?> GetAllWords(string? fullPath, ITelegramBotClient bot, long chatId)
+        private static List<string>? GetAllWords(string? fullPath)
         {
             if (fullPath == null)
             {
                 Console.WriteLine("Database wasn't found");
-                await bot.SendTextMessageAsync(chatId, "Error: Database not found.");
                 return null;
             }
 
             List<string> wordsInDB = new(File.ReadAllLines(fullPath));
-            if (wordsInDB.Count == 0)
-            {
-                await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
-                return null;
-            }
 
             return wordsInDB;
         }
