@@ -18,7 +18,6 @@ namespace LanguageBot
 			TelegramBotClient bot = new(botToken);
 
 			bot.StartReceiving(Update, Error);
-			Console.ReadKey();
 		}
 
 		private static Task Error(ITelegramBotClient bot, Exception exception, CancellationToken token)
