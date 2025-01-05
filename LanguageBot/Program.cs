@@ -19,7 +19,7 @@ namespace LanguageBot
 
 			bot.StartReceiving(Update, Error);
 			Console.WriteLine("Bot is running...");
-    		Thread.Sleep(Timeout.Infinite);
+			Thread.Sleep(Timeout.Infinite);
 		}
 
 		private static Task Error(ITelegramBotClient bot, Exception exception, CancellationToken token)
