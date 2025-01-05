@@ -18,6 +18,8 @@ namespace LanguageBot
 			TelegramBotClient bot = new(botToken);
 
 			bot.StartReceiving(Update, Error);
+			Console.WriteLine("Bot is running...");
+    		Thread.Sleep(Timeout.Infinite);
 		}
 
 		private static Task Error(ITelegramBotClient bot, Exception exception, CancellationToken token)
