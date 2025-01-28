@@ -8,11 +8,11 @@ class dbConnector
 
 	public dbConnector()
     {
-        string? host = Utility.GetEnvironmentVariable("DB_HOST");
-        string? port = Utility.GetEnvironmentVariable("DB_PORT");
-        string? user = Utility.GetEnvironmentVariable("DB_USER");
-        string? password = Utility.GetEnvironmentVariable("DB_PASSWORD");
-        string? database = Utility.GetEnvironmentVariable("DB_NAME");
+        string? host = Utility.GetEnvironmentVariable("MYSQLHOST");
+        string? port = Utility.GetEnvironmentVariable("MYSQLPORT");
+        string? user = Utility.GetEnvironmentVariable("MYSQLUSER");
+        string? password = Utility.GetEnvironmentVariable("MYSQL_ROOT_PASSWORD");
+        string? database = Utility.GetEnvironmentVariable("MYSQL_DATABASE");
 
         _dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
     }
