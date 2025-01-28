@@ -1,5 +1,4 @@
-﻿using System.Text.RegularExpressions;
-using DotNetEnv;
+﻿using DotNetEnv;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -8,14 +7,18 @@ namespace LanguageBot
 {
   class Program
   {
-    public static void Main(string[] args)
+    public static dbConnector db = new dbConnector();
+
+    public static void Main(string[] args)  
     {
       Env.Load();
 
-      string? botToken = GetEnvironmentVariable("BOT-TOKEN");
+      string? botToken = Utility.GetEnvironmentVariable("BOT-TOKEN");
       if (botToken == null) return;
+      if (!db.TestConnection()) return;
 
       TelegramBotClient bot = new(botToken);
+      CreateTables();
 
       bot.StartReceiving(Update, Error);
       Console.WriteLine("Bot is running...");
@@ -38,9 +41,9 @@ namespace LanguageBot
         Console.WriteLine("username doesn't exist");
         return;
       }
-
-      CreateDictionary(username);
-
+  
+      Utility.CreateDictionary(username);
+ 
       switch (message.Text.ToLower())
       {
         case "/start":
@@ -49,14 +52,14 @@ namespace LanguageBot
           return;
 
         case string s when s.Contains("/add"):
-          if (!IsAddCommandValid(s))
+          if (!Utility.IsAddCommandValid(s))
             await bot.SendTextMessageAsync(chatId, "Hmm... it doesn't seem like /add {word} {translate}. Maybe, you missed something");
           else
             await WordsOperations.AddWord(s, bot, chatId, $"{username}.txt");
           return;
 
         case string s when s.Contains("/delete"):
-          if (!IsDeleteCommandValid(s))
+          if (!Utility.IsDeleteCommandValid(s))
             await bot.SendTextMessageAsync(chatId, "What do you want to delete? I need only /delete {word}, not only /delete and not a whole roman");
           else
             await WordsOperations.RemoveWord(s, bot, chatId, $"{username}.txt");
@@ -85,43 +88,34 @@ namespace LanguageBot
       }
     }
 
-    public static string? GetEnvironmentVariable(string varName)
+    private static void CreateTables()
     {
-      string? variableValue = Environment.GetEnvironmentVariable(varName);
-      if (variableValue == null)
-        Console.WriteLine($"environmental variable {variableValue} doesn't exist");
+      string createUsersQuery = @"
+      CREATE TABLE IF NOT EXISTS Users (
+        id INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
+        tag VARCHAR(255) NOT NULL UNIQUE,
+        chatId BIGINT NOT NULL UNIQUE
+      );";
+      db.ExecuteQuery(createUsersQuery);
 
-      return variableValue;
-    }
+      string createWordsQuery = @"
+      CREATE TABLE IF NOT EXISTS Words (
+        id INT AUTO_INCREMENT PRIMARY KEY NOT NULL,
+        word VARCHAR(255) NOT NULL UNIQUE,
+        translation VARCHAR(255) NOT NULL
+      );";
+      db.ExecuteQuery(createWordsQuery);
 
-    private static bool IsAddCommandValid(string command)
-    {
-      Regex fullCommand = new(@"^/add\s+[a-zA-Z\s]+\s+-+\s[\p{IsCyrillic}a-zA-Z\s,'-]+$");
+      string createUsers_WordsQuery = @"
+      CREATE TABLE IF NOT EXISTS Users_Words (
+        userId INT NOT NULL,
+        wordId INT NOT NULL,
 
-      return fullCommand.IsMatch(command);
-    }
-
-    private static bool IsDeleteCommandValid(string command)
-    {
-      Regex validCommand = new(@"^/delete\s+[a-zA-Z\s]+$");
-
-      return validCommand.IsMatch(command);
-    }
-
-    private static void CreateDictionary(string? username)
-    {
-      string directory = "Users";
-      if (!Directory.Exists(directory))
-      {
-        Directory.CreateDirectory(directory);
-      }
-
-      string filePath = Path.Combine(directory, $"{username}.txt");
-      if (!System.IO.File.Exists(filePath))
-      {
-        using (FileStream fs = System.IO.File.Create(filePath)) { }
-        Console.WriteLine($"File for user {username} created");
-      }
+        FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY (wordId) REFERENCES Words(id) ON DELETE CASCADE,
+        UNIQUE KEY (userId, wordId)
+      );";
+      db.ExecuteQuery(createUsers_WordsQuery);
     }
   }
 }

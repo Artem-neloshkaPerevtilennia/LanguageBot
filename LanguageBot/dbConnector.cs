@@ -1,0 +1,59 @@
+using MySql.Data.MySqlClient;
+
+namespace LanguageBot;
+
+class dbConnector
+{
+	private readonly string? _dbConnectionString;
+
+	public dbConnector()
+    {
+        // Отримання змінних середовища
+        string? host = Utility.GetEnvironmentVariable("DB_HOST");
+        string? port = Utility.GetEnvironmentVariable("DB_PORT");
+        string? user = Utility.GetEnvironmentVariable("DB_USER");
+        string? password = Utility.GetEnvironmentVariable("DB_PASSWORD");
+        string? database = Utility.GetEnvironmentVariable("DB_NAME");
+
+        // Формування рядка підключення
+        _dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
+    }
+
+	public bool TestConnection()
+	{
+		try
+		{
+			using (var connection = new MySqlConnection(_dbConnectionString))
+			{
+				connection.Open();
+				Console.WriteLine("Успішне підключення до бд!");
+				return true;
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($@"Error: {ex.Message}");
+			return false;
+		}
+	}
+
+	public void ExecuteQuery(string query)
+	{
+		try
+		{
+			using (var connection = new MySqlConnection(_dbConnectionString))
+			{
+				connection.Open();
+				using (var command = new MySqlCommand(query, connection))
+				{
+					command.ExecuteNonQuery();
+					Console.WriteLine("Запит виконано успішно!");
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Помилка виконання запиту: {ex.Message}");
+		}
+	}
+}

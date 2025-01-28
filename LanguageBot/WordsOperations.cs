@@ -152,7 +152,7 @@ namespace LanguageBot
     private static string? GetPathToDB(string username)
     {
       string database = "DB-FILE";
-      string? fileName = Program.GetEnvironmentVariable(database);
+      string? fileName = Utility.GetEnvironmentVariable(database);
 
       return (fileName == null) ? null
       : Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
