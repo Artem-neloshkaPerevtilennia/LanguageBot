@@ -15,7 +15,7 @@ class dbConnector
 		// string? database = Utility.GetEnvironmentVariable("DB_NAME");
 
 		//_dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
-		string? mysqlUrl = Utility.GetEnvironmentVariable("DB_URL");
+		string? mysqlUrl = Utility.GetEnvironmentVariable("DB-URL");
 
 		if (!string.IsNullOrEmpty(mysqlUrl))
 		{
