@@ -8,16 +8,15 @@ class dbConnector
 
 	public dbConnector()
     {
-        // Отримання змінних середовища
-        string? host = Utility.GetEnvironmentVariable("DB_HOST");
-        string? port = Utility.GetEnvironmentVariable("DB_PORT");
-        string? user = Utility.GetEnvironmentVariable("DB_USER");
-        string? password = Utility.GetEnvironmentVariable("DB_PASSWORD");
-        string? database = Utility.GetEnvironmentVariable("DB_NAME");
+        // string? host = Utility.GetEnvironmentVariable("DB_HOST");
+        // string? port = Utility.GetEnvironmentVariable("DB_PORT");
+        // string? user = Utility.GetEnvironmentVariable("DB_USER");
+        // string? password = Utility.GetEnvironmentVariable("DB_PASSWORD");
+        // string? database = Utility.GetEnvironmentVariable("DB_NAME");
 
-        // Формування рядка підключення
-        _dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
-    }
+        //_dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
+				_dbConnectionString = Utility.GetEnvironmentVariable("DB-URL");
+		}
 
 	public bool TestConnection()
 	{
