@@ -104,7 +104,7 @@ namespace LanguageBot
     {
       try
       {
-        List<string>? wordsInDB = await GetAllWordsForUser(database, chatId);
+        List<List<string>>? wordsInDB = await GetAllWordsWithTranslationForUser(database, chatId);
         if (wordsInDB == null) return;
         if (wordsInDB.Count == 0)
         {
@@ -115,7 +115,8 @@ namespace LanguageBot
         StringBuilder allWords = new();
         foreach (var word in wordsInDB)
         {
-          allWords.AppendLine(word);
+          string wordWithTranslation = word[0] + " - " + word[1];
+          allWords.AppendLine(wordWithTranslation);
         }
 
         await bot.SendTextMessageAsync(chatId, $"All words in your dictionary:\n{allWords}");
@@ -171,13 +172,55 @@ namespace LanguageBot
       return wordsInDB;
     }
 
+    private static async Task<List<List<string>>?> GetAllWordsWithTranslationForUser(dbConnector database, long chatId)
+    {
+      if (database == null)
+      {
+        Console.WriteLine("Database wasn't found");
+        return null;
+      }
+
+      List<List<string>> wordsInDB = new();
+
+      using (MySqlConnection connection = new(database.GetConnectionString()))
+      {
+        await connection.OpenAsync();
+
+        string getAllWordsQuery = $@"
+        SELECT Words.word, Words.translation
+        FROM Words 
+        JOIN Users_Words ON Users_Words.wordId = Words.id 
+        JOIN Users ON Users.id = Users_Words.userId 
+        WHERE Users.chatId = @chatId";
+
+        using (MySqlCommand command = new(getAllWordsQuery, connection))
+        {
+          command.Parameters.AddWithValue("@chatId", chatId);
+
+          using (var reader = await command.ExecuteReaderAsync())
+          {
+            while (await reader.ReadAsync())
+            {
+              List<string> row = new();
+              for (int i = 0; i < reader.FieldCount; i++)
+              {
+                row.Add(reader[i]?.ToString() ?? "");
+              }
+              wordsInDB.Add(row);
+            }
+          }
+        }
+      }
+
+      return wordsInDB;
+    }
+
     private static void AddWordQuery(dbConnector database, string wordToAdd, string translateToAdd, long chatId)
     {
       using (var connection = new MySqlConnection(database.GetConnectionString()))
       {
         connection.Open();
 
-        // 1️⃣ Додаємо слово, якщо його ще немає
         string insertWordQuery = @"
         INSERT INTO Words (word, translation)
         SELECT * FROM (SELECT @word AS word, @translation AS translation) AS tmp
@@ -190,7 +233,6 @@ namespace LanguageBot
           command.ExecuteNonQuery();
         }
 
-        // 2️⃣ Отримуємо `wordId` і `userId`
         string selectIdsQuery = @"
         SELECT w.id, u.id FROM Words w, Users u
         WHERE w.word = @word AND u.chatId = @chatId;";
@@ -210,8 +252,7 @@ namespace LanguageBot
           }
         }
 
-        // 3️⃣ Додаємо запис у Users_Words
-        if (wordId > 0 && userId > 0)  // Переконуємося, що значення отримані
+        if (wordId > 0 && userId > 0)
         {
           string insertUserWordQuery = @"
             INSERT INTO Users_Words (userId, wordId)
@@ -228,14 +269,12 @@ namespace LanguageBot
       }
     }
 
-
     private static void DeleteWordQuery(dbConnector database, string wordToRemove, long chatId)
     {
       using (var connection = new MySqlConnection(database.GetConnectionString()))
       {
         connection.Open();
 
-        // 1️⃣ Отримуємо `wordId` і `userId`
         string selectIdsQuery = @"
         SELECT w.id, u.id FROM Words w
         JOIN Users u ON u.chatId = @chatId
@@ -256,7 +295,6 @@ namespace LanguageBot
           }
         }
 
-        // 2️⃣ Видаляємо запис із `Users_Words`
         if (wordId > 0 && userId > 0)
         {
           string deleteUserWordQuery = @"
@@ -271,7 +309,6 @@ namespace LanguageBot
           }
         }
 
-        // 3️⃣ Видаляємо `word`, якщо воно більше нікому не належить
         string deleteWordQuery = @"
         DELETE w FROM Words w
         LEFT JOIN Users_Words uw ON w.id = uw.wordId
@@ -284,6 +321,5 @@ namespace LanguageBot
         }
       }
     }
-
   }
 }
