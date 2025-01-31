@@ -17,6 +17,8 @@ class dbConnector
         _dbConnectionString = $"Server={host};Port={port};Database={database};User={user};Password={password};";
     }
 
+	public string? GetConnectionString() => _dbConnectionString;
+
 	public bool TestConnection()
 	{
 		try

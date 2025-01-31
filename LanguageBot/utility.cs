@@ -25,20 +25,4 @@ public static class Utility
 
     return validCommand.IsMatch(command);
   }
-
-  public static void CreateDictionary(string? username)
-  {
-    string directory = "Users";
-    if (!Directory.Exists(directory))
-    {
-      Directory.CreateDirectory(directory);
-    }
-
-    string filePath = Path.Combine(directory, $"{username}.txt");
-    if (!System.IO.File.Exists(filePath))
-    {
-      using (FileStream fs = System.IO.File.Create(filePath)) { }
-      Console.WriteLine($"File for user {username} created");
-    }
-  }
 }

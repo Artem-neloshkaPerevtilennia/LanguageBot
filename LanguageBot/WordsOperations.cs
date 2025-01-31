@@ -1,30 +1,26 @@
 using System.Text;
+using MySql.Data.MySqlClient;
 using Telegram.Bot;
 
 namespace LanguageBot
 {
   static class WordsOperations
   {
-    public static async Task AddWord(string command, ITelegramBotClient bot, long chatId, string username)
+    public static async Task AddWord(dbConnector database, string command, ITelegramBotClient bot, long chatId)
     {
       try
       {
-        string? fullPath = GetPathToDB(username);
-        if (fullPath == null)
-        {
-          Console.WriteLine("Database wasn't found");
-          await bot.SendTextMessageAsync(chatId, "Error: Database not found.");
-          return;
-        }
-
         string wordToAdd = command.Replace("/add ", "").Trim();
         string wordToAddWithoutExtraSpaces = string.Join(" ", wordToAdd.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        string[] wordWithTranslation = wordToAddWithoutExtraSpaces.Split(" - ");
+        string word = wordWithTranslation[0];
+        string translation = wordWithTranslation[1];
 
-        bool? isWordInDB = IsWordInDB(wordToAddWithoutExtraSpaces, fullPath);
+        bool? isWordInDB = await IsWordInDB(database, word, chatId);
         if (isWordInDB == null)
         {
           await bot.SendTextMessageAsync(chatId, "Woooops... seems like you database wasn't created.");
-          Console.WriteLine($"database {username} doesn't exist");
+          Console.WriteLine($"database {chatId} doesn't exist");
           return;
         }
 
@@ -35,10 +31,7 @@ namespace LanguageBot
           return;
         }
 
-        using (StreamWriter sw = new(fullPath, true))
-        {
-          sw.WriteLine(wordToAddWithoutExtraSpaces);
-        }
+        AddWordQuery(database, word, translation, chatId);
         await bot.SendTextMessageAsync(chatId, $"word {wordToAddWithoutExtraSpaces} added");
         Console.WriteLine($"word {wordToAddWithoutExtraSpaces} added");
       }
@@ -48,12 +41,11 @@ namespace LanguageBot
       }
     }
 
-    public static async Task RemoveWord(string command, ITelegramBotClient bot, long chatId, string username)
+    public static async Task RemoveWord(dbConnector database, string command, ITelegramBotClient bot, long chatId)
     {
       try
       {
-        string? fullPath = GetPathToDB(username);
-        List<string>? wordsInDB = GetAllWords(fullPath);
+        List<string>? wordsInDB = await GetAllWordsForUser(database, chatId);
         if (wordsInDB == null) return;
         if (wordsInDB.Count == 0)
         {
@@ -72,13 +64,9 @@ namespace LanguageBot
         }
         else
         {
-          bool wordFound = wordsInDB.Remove(wordAndTranslateToDelete);
-          if (wordFound)
-          {
-            File.WriteAllLines(fullPath, wordsInDB);
-            Console.WriteLine("word deleted");
-            await bot.SendTextMessageAsync(chatId, $"Word {wordToDeleteWithoutExtraSpaces} deleted succesfully");
-          }
+          DeleteWordQuery(database, wordAndTranslateToDelete, chatId);
+          Console.WriteLine("word deleted");
+          await bot.SendTextMessageAsync(chatId, $"Word {wordToDeleteWithoutExtraSpaces} deleted succesfully");
         }
       }
       catch (Exception exception)
@@ -87,12 +75,11 @@ namespace LanguageBot
       }
     }
 
-    public static async Task ThrowRandomWord(ITelegramBotClient bot, long chatId, string username)
+    public static async Task ThrowRandomWord(dbConnector database, ITelegramBotClient bot, long chatId)
     {
       try
       {
-        string? fullPath = GetPathToDB(username);
-        List<string>? wordsInDB = GetAllWords(fullPath);
+        List<string>? wordsInDB = await GetAllWordsForUser(database, chatId);
         if (wordsInDB == null) return;
         if (wordsInDB.Count == 0)
         {
@@ -113,12 +100,11 @@ namespace LanguageBot
       }
     }
 
-    public static async Task ShowAllWords(ITelegramBotClient bot, long chatId, string username)
+    public static async Task ShowAllWords(dbConnector database, ITelegramBotClient bot, long chatId)
     {
       try
       {
-        string? fullPath = GetPathToDB(username);
-        List<string>? wordsInDB = GetAllWords(fullPath);
+        List<string>? wordsInDB = await GetAllWordsForUser(database, chatId);
         if (wordsInDB == null) return;
         if (wordsInDB.Count == 0)
         {
@@ -140,35 +126,164 @@ namespace LanguageBot
       }
     }
 
-    private static bool? IsWordInDB(string newWord, string pathToDB)
+    private static async Task<bool?> IsWordInDB(dbConnector database, string wordToFind, long chatId)
     {
-      List<string>? wordsInDB = GetAllWords(pathToDB);
+      List<string>? wordsInDB = await GetAllWordsForUser(database, chatId);
 
       if (wordsInDB == null) return null;
 
-      return wordsInDB.Count > 0 && wordsInDB.Contains(newWord);
+      return wordsInDB.Count > 0 && wordsInDB.Contains(wordToFind);
     }
 
-    private static string? GetPathToDB(string username)
+    private static async Task<List<string>?> GetAllWordsForUser(dbConnector database, long chatId)
     {
-      string database = "DB-FILE";
-      string? fileName = Utility.GetEnvironmentVariable(database);
-
-      return (fileName == null) ? null
-      : Path.Combine(Directory.GetCurrentDirectory(), fileName + username);
-    }
-
-    private static List<string>? GetAllWords(string? fullPath)
-    {
-      if (fullPath == null)
+      if (database == null)
       {
         Console.WriteLine("Database wasn't found");
         return null;
       }
 
-      List<string> wordsInDB = new(File.ReadAllLines(fullPath));
+      List<string> wordsInDB = [];
+      using (MySqlConnection connection = new(database.GetConnectionString()))
+      {
+        await connection.OpenAsync();
+        string getAllWordsQuery = @"
+        SELECT Words.word 
+        FROM Words 
+        JOIN Users_Words ON Users_Words.wordId = Words.id 
+        JOIN Users ON Users.id = Users_Words.userId 
+        WHERE Users.chatId = @chatId";
+
+        using (MySqlCommand command = new(getAllWordsQuery, connection))
+        {
+          command.Parameters.AddWithValue("@chatId", chatId);
+
+          using (var reader = await command.ExecuteReaderAsync())
+          {
+            while (await reader.ReadAsync())
+            {
+              wordsInDB.Add(reader.GetString(0));
+            }
+          }
+        }
+      }
 
       return wordsInDB;
     }
+
+    private static void AddWordQuery(dbConnector database, string wordToAdd, string translateToAdd, long chatId)
+    {
+      using (var connection = new MySqlConnection(database.GetConnectionString()))
+      {
+        connection.Open();
+
+        // 1️⃣ Додаємо слово, якщо його ще немає
+        string insertWordQuery = @"
+        INSERT INTO Words (word, translation)
+        SELECT * FROM (SELECT @word AS word, @translation AS translation) AS tmp
+        WHERE NOT EXISTS (SELECT 1 FROM Words WHERE word = @word);";
+
+        using (var command = new MySqlCommand(insertWordQuery, connection))
+        {
+          command.Parameters.AddWithValue("@word", wordToAdd);
+          command.Parameters.AddWithValue("@translation", translateToAdd);
+          command.ExecuteNonQuery();
+        }
+
+        // 2️⃣ Отримуємо `wordId` і `userId`
+        string selectIdsQuery = @"
+        SELECT w.id, u.id FROM Words w, Users u
+        WHERE w.word = @word AND u.chatId = @chatId;";
+
+        int wordId = 0, userId = 0;
+        using (var command = new MySqlCommand(selectIdsQuery, connection))
+        {
+          command.Parameters.AddWithValue("@word", wordToAdd);
+          command.Parameters.AddWithValue("@chatId", chatId);
+          using (var reader = command.ExecuteReader())
+          {
+            if (reader.Read())
+            {
+              wordId = reader.GetInt32(0);
+              userId = reader.GetInt32(1);
+            }
+          }
+        }
+
+        // 3️⃣ Додаємо запис у Users_Words
+        if (wordId > 0 && userId > 0)  // Переконуємося, що значення отримані
+        {
+          string insertUserWordQuery = @"
+            INSERT INTO Users_Words (userId, wordId)
+            SELECT * FROM (SELECT @userId AS userId, @wordId AS wordId) AS tmp
+            WHERE NOT EXISTS (SELECT 1 FROM Users_Words WHERE userId = @userId AND wordId = @wordId);";
+
+          using (var command = new MySqlCommand(insertUserWordQuery, connection))
+          {
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@wordId", wordId);
+            command.ExecuteNonQuery();
+          }
+        }
+      }
+    }
+
+
+    private static void DeleteWordQuery(dbConnector database, string wordToRemove, long chatId)
+    {
+      using (var connection = new MySqlConnection(database.GetConnectionString()))
+      {
+        connection.Open();
+
+        // 1️⃣ Отримуємо `wordId` і `userId`
+        string selectIdsQuery = @"
+        SELECT w.id, u.id FROM Words w
+        JOIN Users u ON u.chatId = @chatId
+        WHERE w.word = @word;";
+
+        int wordId = 0, userId = 0;
+        using (var command = new MySqlCommand(selectIdsQuery, connection))
+        {
+          command.Parameters.AddWithValue("@word", wordToRemove);
+          command.Parameters.AddWithValue("@chatId", chatId);
+          using (var reader = command.ExecuteReader())
+          {
+            if (reader.Read())
+            {
+              wordId = reader.GetInt32(0);
+              userId = reader.GetInt32(1);
+            }
+          }
+        }
+
+        // 2️⃣ Видаляємо запис із `Users_Words`
+        if (wordId > 0 && userId > 0)
+        {
+          string deleteUserWordQuery = @"
+            DELETE FROM Users_Words 
+            WHERE userId = @userId AND wordId = @wordId;";
+
+          using (var command = new MySqlCommand(deleteUserWordQuery, connection))
+          {
+            command.Parameters.AddWithValue("@userId", userId);
+            command.Parameters.AddWithValue("@wordId", wordId);
+            command.ExecuteNonQuery();
+          }
+        }
+
+        // 3️⃣ Видаляємо `word`, якщо воно більше нікому не належить
+        string deleteWordQuery = @"
+        DELETE w FROM Words w
+        LEFT JOIN Users_Words uw ON w.id = uw.wordId
+        WHERE w.id = @wordId AND uw.wordId IS NULL;";
+
+        using (var command = new MySqlCommand(deleteWordQuery, connection))
+        {
+          command.Parameters.AddWithValue("@wordId", wordId);
+          command.ExecuteNonQuery();
+        }
+      }
+    }
+
   }
 }

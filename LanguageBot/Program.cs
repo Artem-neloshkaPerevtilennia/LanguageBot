@@ -1,4 +1,5 @@
 ﻿using DotNetEnv;
+using MySql.Data.MySqlClient;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -9,7 +10,7 @@ namespace LanguageBot
   {
     public static dbConnector db = new dbConnector();
 
-    public static void Main(string[] args)  
+    public static void Main(string[] args)
     {
       Env.Load();
 
@@ -41,9 +42,9 @@ namespace LanguageBot
         Console.WriteLine("username doesn't exist");
         return;
       }
-  
-      Utility.CreateDictionary(username);
- 
+
+      CreateDictionary(username, chatId);
+
       switch (message.Text.ToLower())
       {
         case "/start":
@@ -55,22 +56,22 @@ namespace LanguageBot
           if (!Utility.IsAddCommandValid(s))
             await bot.SendTextMessageAsync(chatId, "Hmm... it doesn't seem like /add {word} {translate}. Maybe, you missed something");
           else
-            await WordsOperations.AddWord(s, bot, chatId, $"{username}.txt");
+            await WordsOperations.AddWord(db, s, bot, chatId);
           return;
 
         case string s when s.Contains("/delete"):
           if (!Utility.IsDeleteCommandValid(s))
             await bot.SendTextMessageAsync(chatId, "What do you want to delete? I need only /delete {word}, not only /delete and not a whole roman");
           else
-            await WordsOperations.RemoveWord(s, bot, chatId, $"{username}.txt");
+            await WordsOperations.RemoveWord(db, s, bot, chatId);
           return;
 
         case "/rand":
-          await WordsOperations.ThrowRandomWord(bot, chatId, $"{username}.txt");
+          await WordsOperations.ThrowRandomWord(db, bot, chatId);
           return;
 
         case "/list":
-          await WordsOperations.ShowAllWords(bot, chatId, $"{username}.txt");
+          await WordsOperations.ShowAllWords(db, bot, chatId);
           return;
 
         case "/help":
@@ -116,6 +117,27 @@ namespace LanguageBot
         UNIQUE KEY (userId, wordId)
       );";
       db.ExecuteQuery(createUsers_WordsQuery);
+    }
+
+    public static void CreateDictionary(string userTag, long chatId)
+    {
+      using (var connection = new MySqlConnection(db.GetConnectionString()))
+      {
+        connection.Open();
+        string query = @"
+        INSERT INTO Users (tag, chatId)
+        SELECT * FROM (SELECT @tag AS tag, @chatId AS chatId) AS tmp
+        WHERE NOT EXISTS (
+            SELECT 1 FROM Users WHERE chatId = @chatId
+        );";
+
+        using (var command = new MySqlCommand(query, connection))
+        {
+          command.Parameters.AddWithValue("@tag", userTag);
+          command.Parameters.AddWithValue("@chatId", chatId);
+          command.ExecuteNonQuery();
+        }
+      }
     }
   }
 }
