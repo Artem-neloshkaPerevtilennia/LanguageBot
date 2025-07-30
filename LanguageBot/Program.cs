@@ -2,7 +2,6 @@
 using MySql.Data.MySqlClient;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace LanguageBot
 {
@@ -33,9 +32,16 @@ namespace LanguageBot
 
     private static async Task Update(ITelegramBotClient bot, Update update, CancellationToken token)
     {
-      if (update.Type != UpdateType.Message || update.Message?.Text == null) return;
       Message message = update.Message;
+      string? messageText = message.Text.ToLower();
       long chatId = message.Chat.Id;
+      if (messageText == null)
+      {
+        await bot.SendTextMessageAsync(chatId, "Wrong message format. Please, send text non-empty messages!");
+        Console.WriteLine("Wrong message format");
+        return;
+      }
+
       var username = message.From?.Username;
       if (username == null)
       {
@@ -45,7 +51,7 @@ namespace LanguageBot
 
       CreateDictionary(username, chatId);
 
-      switch (message.Text.ToLower())
+      switch (messageText)
       {
         case "/start":
           string greetings = "Hi! I am Language Bot and I will help you to improve your vocabulary. To explore commands use /help";
@@ -54,7 +60,7 @@ namespace LanguageBot
 
         case string s when s.Contains("/add"):
           if (!Utility.IsAddCommandValid(s))
-            await bot.SendTextMessageAsync(chatId, "Hmm... it doesn't seem like /add {word} {translate}. Maybe, you missed something");
+            await bot.SendTextMessageAsync(chatId, "Hmm... it doesn't seem like /add {word} - {translate}. Maybe, you missed something");
           else
             await WordsOperations.AddWord(db, s, bot, chatId);
           return;
@@ -76,15 +82,15 @@ namespace LanguageBot
 
         case "/help":
           await bot.SendTextMessageAsync(chatId, @"Here are some commands to operate with dictionary:
-						/add {word} - {translate} - write new word in dictionary
-						/delete {word} - delete word from dictionary
-						/rand - throw a random word from dictionary (without a translation)
-						/list - show all words in dictionary with translation
-						/help - all commands");
+						/add {word} - {translate}: write new word in dictionary
+						/delete {word}: delete word from dictionary
+						/rand: throw a random word from dictionary (without a translation)
+						/list: show all words in dictionary with translation
+						/help: all commands");
           return;
 
         default:
-          Console.WriteLine("не те");
+          Console.WriteLine("This is not a chat to talk: use commands!\nWe learn english here, talk to some girls outside, not here!");
           return;
       }
     }
@@ -117,11 +123,24 @@ namespace LanguageBot
         UNIQUE KEY (userId, wordId)
       );";
       db.ExecuteQuery(createUsers_WordsQuery);
+
+      string createQuestionsQuery = @"
+      CREATE TABLE IF NOT EXISTS Questions (
+        chatId BIGINT NOT NULL,
+        messageId BIGINT NOT NULL,
+        userId INT NOT NULL,
+        wordId INT NOT NULL,
+
+        FOREIGN KEY (userId) REFERENCES Users(id) ON DELETE CASCADE,
+        FOREIGN KEY (wordId) REFERENCES Words(id) ON DELETE CASCADE,
+        PRIMARY KEY (chatId, messageId)
+      );";
+      db.ExecuteQuery(createQuestionsQuery);
     }
 
     public static void CreateDictionary(string userTag, long chatId)
     {
-      using (var connection = new MySqlConnection(db.GetConnectionString()))
+      using (MySqlConnection connection = new (db.GetConnectionString()))
       {
         connection.Open();
         string query = @"

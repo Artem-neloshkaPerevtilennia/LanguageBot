@@ -84,6 +84,7 @@ namespace LanguageBot
         if (wordsInDB.Count == 0)
         {
           await bot.SendTextMessageAsync(chatId, "Doesn't seem like you have something in your dictionary. Add some words immediately!");
+          Console.WriteLine("there are no words in dictionary");
           return;
         }
 
@@ -91,7 +92,7 @@ namespace LanguageBot
         int indexOfWord = random.Next(0, wordsInDB.Count);
 
         string randomWord = wordsInDB[indexOfWord].Split(" -")[0];
-        await bot.SendTextMessageAsync(chatId, $"Random word: {randomWord}");
+        await bot.SendTextMessageAsync(chatId, $"Random word: {randomWord}\nType a translation on reply to this message to check if you are goddamn right");
         Console.WriteLine("random word sent");
       }
       catch (Exception exception)
