@@ -75,7 +75,7 @@ namespace LanguageBot
       }
     }
 
-    public static async Task ThrowRandomWord(dbConnector database, ITelegramBotClient bot, long chatId)
+    public static async Task ThrowRandomWord(dbConnector database, ITelegramBotClient bot, long chatId, long messageId)
     {
       try
       {
@@ -93,6 +93,9 @@ namespace LanguageBot
 
         string randomWord = wordsInDB[indexOfWord].Split(" -")[0];
         await bot.SendTextMessageAsync(chatId, $"Random word: {randomWord}\nType a translation on reply to this message to check if you are goddamn right");
+
+        (int, int) userWordIds = await FindUserAndWordInDB(database, chatId, randomWord);
+        AddQuestionToDB(database, chatId, messageId, userWordIds.Item1, userWordIds.Item2);
         Console.WriteLine("random word sent");
       }
       catch (Exception exception)
@@ -227,7 +230,7 @@ namespace LanguageBot
         SELECT * FROM (SELECT @word AS word, @translation AS translation) AS tmp
         WHERE NOT EXISTS (SELECT 1 FROM Words WHERE word = @word);";
 
-        using (var command = new MySqlCommand(insertWordQuery, connection))
+        using (MySqlCommand command = new(insertWordQuery, connection))
         {
           command.Parameters.AddWithValue("@word", wordToAdd);
           command.Parameters.AddWithValue("@translation", translateToAdd);
@@ -239,7 +242,7 @@ namespace LanguageBot
         WHERE w.word = @word AND u.chatId = @chatId;";
 
         int wordId = 0, userId = 0;
-        using (var command = new MySqlCommand(selectIdsQuery, connection))
+        using (MySqlCommand command = new(selectIdsQuery, connection))
         {
           command.Parameters.AddWithValue("@word", wordToAdd);
           command.Parameters.AddWithValue("@chatId", chatId);
@@ -260,7 +263,7 @@ namespace LanguageBot
             SELECT * FROM (SELECT @userId AS userId, @wordId AS wordId) AS tmp
             WHERE NOT EXISTS (SELECT 1 FROM Users_Words WHERE userId = @userId AND wordId = @wordId);";
 
-          using (var command = new MySqlCommand(insertUserWordQuery, connection))
+          using (MySqlCommand command = new(insertUserWordQuery, connection))
           {
             command.Parameters.AddWithValue("@userId", userId);
             command.Parameters.AddWithValue("@wordId", wordId);
@@ -320,6 +323,61 @@ namespace LanguageBot
           command.Parameters.AddWithValue("@wordId", wordId);
           command.ExecuteNonQuery();
         }
+      }
+    }
+
+    private static void AddQuestionToDB(dbConnector database, long chatId, long userMessageId, int userId, int wordId)
+    {
+      long questionMessageId = userMessageId + 1; //in function is a sended message's id by user, not message's with question
+      using (var connection = new MySqlConnection(database.GetConnectionString()))
+      {
+        connection.Open();
+
+        string insertQuestionQuery = @"
+        INSERT INTO Questions (chatId, messageId, userId, wordId)
+        SELECT * FROM (SELECT @chatId AS chatId, @messageId AS messageId, @userId AS userId, @wordId AS wordId) AS tmp
+        WHERE NOT EXISTS (SELECT 1 FROM Questions WHERE chatId = @chatId AND messageId = @messageId);";
+
+        using (MySqlCommand command = new(insertQuestionQuery, connection))
+        {
+          command.Parameters.AddWithValue("@chatId", chatId);
+          command.Parameters.AddWithValue("@messageId", questionMessageId);
+          command.Parameters.AddWithValue("@userId", userId);
+          command.Parameters.AddWithValue("@wordId", wordId);
+          command.ExecuteNonQuery();
+        }
+      }
+    }
+
+    private static async Task<(int, int)> FindUserAndWordInDB(dbConnector database, long chatId, string word)
+    {
+      using (MySqlConnection connection = new(database.GetConnectionString()))
+      {
+        connection.Open();
+        
+        string query = @"
+        SELECT 
+          (SELECT id FROM Users WHERE chatId = @chatId) AS userId,
+          (SELECT id FROM Words WHERE word = @word) AS wordId;
+        ";
+
+        using (MySqlCommand command = new(query, connection))
+        {
+          command.Parameters.AddWithValue("@chatId", chatId);
+          command.Parameters.AddWithValue("@word", word);
+
+          using (var reader = await command.ExecuteReaderAsync())
+          {
+            if (await reader.ReadAsync())
+            {
+              int userId = reader.IsDBNull(0) ? -1 : reader.GetInt32(0);
+              int wordId = reader.IsDBNull(1) ? -1 : reader.GetInt32(1);
+              return (userId, wordId);
+            }
+          }
+        }
+
+        return (-1, -1);
       }
     }
   }
